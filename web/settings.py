@@ -39,6 +39,7 @@ class Settings:
                 },
                 'datacenter': None,
                 'root_system_folder': None,
+                'clone_approach': 'linked_clone'  # valid values: 'linked_clone', 'instant_clone'
             },
             'service': {
                 'listen': '127.0.0.1',
@@ -51,7 +52,7 @@ class Settings:
                     'caching_period': 15,             # in seconds
                     'caching_enabled_threshold': 90,  # in percent
                 },
-                'screenshot_store': 'db',  # hcp eventually
+                'screenshot_store': 'db'  # hcp eventually
             },
             'hcp': {
                 'url': None,
@@ -84,6 +85,7 @@ class Settings:
 
     raven = None
 
+    @staticmethod
     def __flatten(items):
         """Yield items from any nested iterable; see Reference."""
         for item in items:
@@ -93,6 +95,7 @@ class Settings:
             else:
                 yield item
 
+    @staticmethod
     def configure():
         config_file_section = Settings.__config[Settings.environ]
         config_file_section['labels'] = \

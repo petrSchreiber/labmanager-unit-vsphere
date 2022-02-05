@@ -228,7 +228,7 @@ class VCenter:
                 settings.raven.captureException(exc_info=True)
         raise ValueError('machine {} cannot be found'.format(vm_name))
 
-    def __clone_template(self, template, machine_name, destination_folder, snapshot_name):
+    def __get_linked_clone_task(self, template, machine_name, destination_folder, snapshot_name):
 
         snap = self.search_for_snapshot(
                                                     template,
@@ -267,6 +267,26 @@ class VCenter:
                     )
         return task
 
+    def __get_instant_clone_task(self, source_machine, destination_machine_name, destination_folder):
+        """
+        Creates task for performing an instant clone from existing source machine
+
+        :param source_machine: machine to base new machine on
+        :param destination_machine_name: name of newly created machine
+        :param destination_folder: location of the machine
+        :return: task
+        """
+        relocate_spec = vim.vm.RelocateSpec()
+        relocate_spec.folder = destination_folder
+        relocate_spec.pool = self.destination_resource_pool
+
+        instant_clone_spec = vim.vm.InstantCloneSpec(
+            name=destination_machine_name,
+            location=relocate_spec
+        )
+
+        return source_machine.InstantClone_Task(spec=instant_clone_spec)
+
     def get_machine_by_uuid(self, uuid):
         self.__logger.debug(f'-> get_machine_by_uuid({uuid})')
         self.__check_connection()
@@ -302,12 +322,25 @@ class VCenter:
                 self.__logger.debug('datastore: {}'.format(template.datastore[0].name))
                 if template.snapshot:
                     self.__logger.debug('snapshot: {}'.format(template.snapshot.currentSnapshot))
-                task = self.__clone_template(
-                    template,
-                    machine_name,
-                    self.vm_folders.create_folder(settings.app['vsphere']['folder']),
-                    settings.app['vsphere']['default_snapshot_name']
-                )
+
+                clone_approach = settings.app['vsphere'].get('clone_approach', 'linked_clone')
+                machine_folder= self.vm_folders.create_folder(settings.app['vsphere']['folder'])
+
+                if clone_approach == 'linked_clone':
+                    task = self.__get_linked_clone_task(
+                        template,
+                        machine_name,
+                        machine_folder,
+                        settings.app['vsphere']['default_snapshot_name']
+                    )
+                elif clone_approach == 'instant_clone':
+                    task = self.__get_instant_clone_task(
+                        template,
+                        machine_name,
+                        machine_folder
+                    )
+                else:
+                    raise RuntimeError("vsphere/clone_approach has invalid value of {}".format(clone_approach))
 
                 vm = self.wait_for_task(task)
                 self.__logger.debug('Task finished with value: {}'.format(vm))
